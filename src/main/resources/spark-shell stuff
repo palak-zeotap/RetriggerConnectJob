@@ -1,0 +1,46 @@
+spark-shell --driver-class-path /usr/lib/oozie/lib/postgresql-9.0-801.jdbc4.jar --jars /usr/lib/oozie/lib/postgresql-9.0-801.jdbc4.jar --executor-memory=8g
+
+import java.util.Properties
+
+import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.slf4j.{Logger, LoggerFactory}
+
+
+class PostgresDatasetProvider {
+  val log: Logger = LoggerFactory.getLogger(this.getClass)
+
+  def getMappingDataset(dbProps: Properties, mappingTableName: String)(implicit spark: SparkSession): DataFrame = {
+
+    try {
+      dbProps.put("driver","org.postgresql.Driver")
+      val url = "jdbc:postgresql://" + dbProps.get("host") + ":" + "5432" + "/" + dbProps.get("db")
+      spark.read.jdbc(url, mappingTableName, dbProps)
+    }
+    catch {
+      case exception: Exception => {
+        log.error("Error while postgres mapping load : " + exception)
+        throw new Exception("Error while reading data from postgres SQL")
+      }
+    }
+  }
+}
+
+ val postgresDatasetProvider = new PostgresDatasetProvider()
+
+  //Postgres QA sql credentials
+  val connectHostName = "pgsql-connect-staging-eu.zeotap.net"
+  val connectUser = "connect-user"
+  val connectPassword ="MzHsjB7u2KL4B8dA"
+  val connectDatabase = "segments"
+  val DPSHostName="pgsql-daap-seg-staging-eu.zeotap.net"
+  val DPSUser="segment_api_qa_db"
+  val DPSPassword="Thegutr=+et"
+  val DPSDatabase="mrshepherd_dps_qa"
+
+  val connect_dbProps = new Properties()
+    connect_dbProps.put("host", connectHostName)
+    connect_dbProps.put("user", connectUser)
+    connect_dbProps.put("password", connectPassword)
+    connect_dbProps.put("db", connectDatabase)
+
+    val workflow_jobs = postgresDatasetProvider.getMappingDataset(connect_dbProps,"workflow_jobs")(spark)

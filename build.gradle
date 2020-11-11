@@ -1,0 +1,30 @@
+plugins {
+    id 'java'
+}
+
+group 'org.example'
+version '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+ext {
+    log4jVersion = '2.11.1'
+    scalaVersion = '2.11.8'
+    sparkVersion = '2.4.0'
+    pegdownVersion = '1.6.0'
+    sparkTestingVersion = '2.4.0_0.11.0'
+    jettisonVersion = '1.4.0'
+    coreVersion = '1.0-SNAPSHOT'
+}
+
+apply plugin: 'scala'
+dependencies {
+    compileOnly group: 'org.apache.spark', name: 'spark-core_2.11', version: sparkVersion
+    compileOnly group: 'org.apache.spark', name: 'spark-sql_2.11', version: sparkVersion
+    testCompile group: 'org.apache.spark', name: 'spark-hive_2.11', version: sparkVersion
+    testRuntime group: 'org.pegdown', name: 'pegdown', version: pegdownVersion
+    testCompile group: 'com.holdenkarau', name: 'spark-testing-base_2.11', version: sparkTestingVersion
+    compile group: 'org.postgresql', name: 'postgresql', version: '42.2.18'
+}

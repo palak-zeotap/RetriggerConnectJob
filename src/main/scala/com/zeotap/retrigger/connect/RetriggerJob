@@ -1,0 +1,71 @@
+package com.zeotap.retrigger.connect
+
+import java.util.Properties
+
+import com.zeotap.retrigger.utility.PostgresDatasetProvider
+import org.apache.spark.SparkConf
+import org.apache.spark.sql.SparkSession
+
+
+object RetriggerJob {
+  def main(args: Array[String]) {
+
+    // take properties file as argument and duration
+  val conf = new SparkConf()
+  conf.set("spark.hadoop.yarn.timeline-service.enabled", "false")
+  val spark: SparkSession = SparkSession.builder().appName(s"retrigger-connect-jobs").config(conf).getOrCreate()
+
+
+  val postgresDatasetProvider = new PostgresDatasetProvider()
+
+    /*val connectHostName = "pgsql-connect-prod-eu.zeotap.net"
+   val connectUser = "connect"
+   val connectPassword ="connect2019"
+   val connectDatabase = "segments"*/
+  //Postgres QA sql credentials
+  val connectHostName = "pgsql-db-connectgraph-qa-eu.zeotap.net"
+  val connectUser = "connect_write_user"
+  val connectPassword ="64d97bd1babb0e29"
+  val connectDatabase = "segments"
+
+  val DPSHostName="pgsql-daap-seg-staging-eu.zeotap.net"
+  val DPSUser="segment_api_qa_db"
+  val DPSPassword="Thegutr=+et5"
+  val DPSDatabase="mrshepherd_dps_qa"
+
+  val connect_dbProps = new Properties()
+    connect_dbProps.put("host", connectHostName)
+    connect_dbProps.put("user", connectUser)
+    connect_dbProps.put("password", connectPassword)
+    connect_dbProps.put("db", connectDatabase)
+
+    val DPS_dbProps = new Properties()
+    DPS_dbProps.put("host", DPSHostName)
+    DPS_dbProps.put("user", DPSUser)
+    DPS_dbProps.put("password", DPSPassword)
+    DPS_dbProps.put("db", DPSDatabase)
+
+    val currentTimestamp=System.currentTimeMillis
+    // 48 hours window
+    val fromTimestamp=currentTimestamp-(3600*1000*48)
+    val workflow_jobs = postgresDatasetProvider.getMappingDataset(connect_dbProps,"workflow_jobs")(spark)
+    workflow_jobs.createOrReplaceTempView("workflow_jobs")
+
+    // to get workflow_ids of failed jobs
+    val mainDf=spark.sql(s"Select * from workflow_jobs where create_ts BETWEEN ${fromTimestamp} AND ${currentTimestamp}")
+    mainDf.createOrReplaceTempView("mainDf")
+
+
+    // fetch ids above connect-insights-failure
+    val df=spark.sql(s"Select previous_job_id from (Select *,LAG(remote_job_id,1) OVER (PARTITION BY workflow_id ORDER BY create_ts)previous_job_id from mainDf) where job_name='connect_insights_processor' and job_status='failed'")
+
+    val workflow_ids=df.select("previous_job_id").where("previous_job_id IS NOT NULL").rdd.map(r => r(0)).collect.mkString(",")
+    val list=workflow_ids.split(",").mkString("'", "', '", "'")
+
+    val dp_job_status = postgresDatasetProvider.getMappingDataset(DPS_dbProps,"dp_job_status")(spark)
+    dp_job_status.createOrReplaceTempView("dp_job_status")
+    //'d81d613a-b321-402c-b4c8-0a9b029d81f9'
+    postgresDatasetProvider.updateDataset(DPS_dbProps,list)
+
+  }
+}
